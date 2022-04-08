@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <meta charset="utf-8" />    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="Description" content="ASA - Arduino Serial App">
+    <meta name="theme-color" content="#0ca1a6" />
+    <link rel="apple-touch-icon" href="/img/icon-192.png">
+    <link rel="icon" href="/asa/favicon.ico">
+    <link rel="manifest" href="/asa/manifest.json" />
+
+    <title>小松电子疗养院</title>
+
+    <style>
+
+        @font-face {
+            font-family: 'Roboto Mono';
+            font-style: normal;
+            font-weight: 400;
+            src: local('Roboto Mono'), url(RobotoMono-Regular.ttf) format('truetype');
+            font-display: swap;
+        }
+
+        html, body {
+            height: 100%;
+            margin: 0;
+            overscroll-behavior-y: contain;
+        }
+
+        html, body, td, input {
+            font-family: 'Roboto Mono', 'Courier New', monospace;           
+        }                          
+
+        .btn {
+            background-color: #0ca1a6;
+            border: none;
+            padding: 0;
+            margin: 0;
+            width: 42px;
+            height: 42px;
+            cursor: pointer;
+        }
+
+        @media (hover: hover) and (pointer: fine) {
+            .btn:hover {
+                background-color: #20c3b4;
+            }
+        }
+
+        #c {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        #outputDiv {
+            position: absolute;
+            top: 150px;
+            bottom: 50px;
+            left: 0;
+            right: 0;
+            overflow-y: scroll;            
+            max-height: 1000000px;
+            z-index: -1;
+        }
+
+            #outputDiv.lt {
+                background-color: white;
+            }
+
+            #outputDiv.dk {
+                background-color: black;
+            }
+
+        #panelDiv {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 50px;
+            background-color: #0ca1a6;
+        }
+
+        #panelDiv2 {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 50px;
+            background-color: #0ca1a6;
+        }
+
+        #connectBtn2 {
+            position: absolute;
+            left: 5px;
+            top: 4px;
+        }
+
+        #enterBtn2 {
+            position: absolute;
+            right: 5px;
+            top: 4px;
+        }
+
+        #connectBtn {
+            position: absolute;
+            left: 5px;
+            top: 4px;
+        }
+
+        #enterBtn {
+            position: absolute;
+            right: 5px;
+            top: 4px;
+        }
+
+        #inputDiv {
+            position: absolute;
+            top: 8px;
+            left: 52px;
+            right: 52px;
+            bottom: 8px;
+        }        
+        
+        #inputDiv2 {
+            position: absolute;
+            top: 8px;
+            left: 52px;
+            right: 52px;
+            bottom: 8px;
+        }
+
+        #cvs {
+            position: absolute;
+            top:50px;
+            width: 100%;
+            height: 300px;
+            padding: 6px 10px 10px 10px;
+            background-color: #0ca1a6;
+            box-sizing: border-box;
+            display:none;
+        }
+
+        #inputElem {
+            position: absolute;            
+            border: none;
+            outline: none;            
+            font-size: medium;
+            width: 100%;
+            height: 100%;
+            padding: 6px 10px 10px 10px;
+            margin: 0;
+            box-sizing: border-box;
+        }
+
+            #inputElem.lt {
+                background-color: white;
+                color: rgb(10, 10, 10);
+            }
+
+            #inputElem.dk {
+                background-color: black;
+                color: rgb(220, 220, 220);
+            }
+        #selectElem {
+            position: absolute;            
+            border: none;
+            outline: none;            
+            font-size: medium;
+            width: 100%;
+            height: 100%;
+            padding: 6px 10px 10px 10px;
+            margin: 0;
+            box-sizing: border-box;
+        }
+        #outputDiv table, td {
+            border: none;
+            border-collapse: collapse;
+        }
+
+        #outputDiv table {
+            width: 100%;              
+        }
+
+            #outputDiv td {
+                padding: 0 5px 0 5px;
+            }
+
+                #outputDiv td.tsShow {
+                    display: table-cell;
+                    color: darkgray;
+                    width: 120px;                    
+                    white-space: nowrap;
+                    vertical-align:top;
+                }
+
+            #outputDiv td.tsHide {
+                display: none;
+            }
+
+        #outputDiv .outsyst, #outputDiv .outcmd {
+            white-space: pre-wrap;
+        }
+
+            #outputDiv .outsyst, .outsyst.lt, #outputDiv .outsyst.dk {
+                color: rgb(12, 161, 166);
+            }
+            
+            #outputDiv .outcmd.lt {
+                color: rgb(0 121 126);
+            }
+
+            #outputDiv .outcmd.dk {
+                color: rgb(0 189 196);
+            }
+
+        #outputDiv .outserial.lt {
+            color: rgb(10, 10, 10);
+        }
+
+        #outputDiv .outserial.dk {
+            color: rgb(220, 220, 220);
+        }
+            
+
+
+        td {
+            font-size: 16px;
+        }
+
+        @media only screen and (min-width: 601px) {
+            td {
+                font-size: 14px;
+            }
+
+            #outputDiv td.tsShow {
+                width: 100px;                
+            }
+        }   
+
+    </style>
+</head>
+<body>
+    
+    <div id="c">
+        <div id="panelDiv2">
+            <button id="connectBtn2" class="btn"><img src="img/white_36dp_play.svg" width="36" height="36" alt="connect" /></button>
+            <div id="inputDiv"><select id="selectElem" type="text" name="inputElem" autocomplete="off" spellcheck="false"></select></div>
+            <button id="enterBtn2" class="btn"><img src="img/white_36dp_check.svg" width="36" height="36" alt="connect" /></button>
+        </div> 
+        <div id="cvs"><canvas id="gif" hidden=true> 浏览器不支持canvas</canvas></div>
+
+        <div id="outputDiv">                                  
+            <table>          
+                <tr><td class="outsyst" id="version"></td><td></td></tr>
+            </table>
+        </div>
+
+        <div id="panelDiv">
+            <button id="connectBtn" class="btn"><img src="img/white_36dp_play.svg" width="36" height="36" alt="connect" /></button>
+            <div id="inputDiv"><input id="inputElem" type="text" name="inputElem" autocomplete="off" spellcheck="false" ></div>
+            <button id="enterBtn" class="btn"><img src="img/white_36dp_check.svg" width="36" height="36" alt="connect" /></button>
+        </div>        
+    </div>
+   
+    <script type="text/javascript" src="serial.js"></script>
+    <script type="text/javascript" src="app.js">
+    </script>
+
+    <script type="text/javascript">
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.addEventListener('message', event => {
+                    if (event.data.msg && event.data.msg === 'version') {
+                        document.getElementById('version').innerHTML = 'v' + event.data.version;
+                    }
+                });
+
+                navigator.serviceWorker.register('/asa/sw.js', { scope: '/asa/' })
+                    .then(reg => {
+                        console.log('registered', reg);
+                    }).catch(err => {
+                        console.log('registration failed', err);
+                    });
+
+                navigator.serviceWorker.ready.then(reg => {
+                    reg.active.postMessage("version");
+                });
+            });
+        }
+    </script>
+</body>
+</html>

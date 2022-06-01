@@ -116,11 +116,11 @@ function audioPlayer() {
     function toggle(e) {
         var icon = e.target.matches('.circle, .circle *') ? btn_small_icon : btn_big_icon;
         if ( icon.classList.contains('pause') ) {
-            player.pause();
+            //player.pause();
             btn_small_icon.classList.remove('pause');
             btn_big_icon.classList.remove('pause');
         } else {
-            player.play();
+            //player.play();
             btn_small_icon.classList.add('pause');
             btn_big_icon.classList.add('pause');
             if (stimulator._port == null) {
@@ -428,6 +428,7 @@ class Stimulator {
         fetch(location+url).then(res=>{
             return res.json();
         }).then(res=>{
+            var btn_amp = document.getElementById('show_amp');
             var amp = btn_amp.value;
             this.chufang = res;
             this._wave = res["waves_list"].map(v => v * amp / 100);

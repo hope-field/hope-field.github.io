@@ -1,0 +1,8 @@
+{
+  "dependencies": {
+    "axios": "^0.18.0",
+    "koa": "^2.5.1",
+    "@koa/cors": "^2.2.3",
+    "koa-bodyparser": "^4.2.0"
+  }
+}

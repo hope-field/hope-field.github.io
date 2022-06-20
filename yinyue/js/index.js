@@ -12,7 +12,7 @@ var fang = {};
 
 window.onload = _ => {
     try{
-        stimulator._connect();
+        //stimulator._connect();
     } catch(e) {
         console.log(e);
     }
@@ -116,16 +116,13 @@ function audioPlayer() {
     function toggle(e) {
         var icon = e.target.matches('.circle, .circle *') ? btn_small_icon : btn_big_icon;
         if ( icon.classList.contains('pause') ) {
-            //player.pause();
+            player.pause();
             btn_small_icon.classList.remove('pause');
             btn_big_icon.classList.remove('pause');
         } else {
-            //player.play();
+            player.play();
             btn_small_icon.classList.add('pause');
             btn_big_icon.classList.add('pause');
-            if (stimulator._port == null) {
-                stimulator._connect();
-            }
             if (stimulator._wave.length < 10) {
                 stimulator.fetch_wave_data('alpha.json');
             } 
@@ -288,6 +285,10 @@ class Stimulator {
     }
 
     async _looplay() {
+        if (this._port == null) {
+            await this._connect();
+        }
+
         if (this._port != null) {
             try {
                 await this._port.open(this._serialOptions);

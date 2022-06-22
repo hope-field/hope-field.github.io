@@ -139,7 +139,8 @@ function audioPlayer() {
     var cir_left = document.querySelector('.circle-left');
     var rotate_wrap = document.querySelector('.circle-pic');
     //调幅
-
+    var btn_amp = document.getElementById('show_amp');
+    var v_amp = document.getElementById('amp_v');
     //player.addEventListener('timeupdate', updateProgress);
     player.addEventListener('loadedmetadata', function duration() {
         total_time.textContent = formatTime(player.duration);
@@ -154,6 +155,14 @@ function audioPlayer() {
             progress.removeEventListener('touchmove', rewind);
         });
     })
+
+    btn_amp.addEventListener('input', (e)=>{
+        stimulator.ampchange(btn_amp.value);
+        v_amp.innerHTML = btn_amp.value;
+        tryKeepScreenAlive(100 - btn_amp.value + 20);
+        console.log(btn_amp.value);
+    })
+
     setInterval(() => {
         var current = Number(current_time.textContent.split(':')[0])*60 + Number(current_time.textContent.split(':')[1]) + 1;
         var ratio = current /( Number(total_time.textContent.split(':')[0])*60 + Number(total_time.textContent.split(':')[1]));

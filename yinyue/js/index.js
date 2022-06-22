@@ -10,37 +10,35 @@ var list_btn = document.querySelector('.list-icon');
 var list_dark_btn = document.querySelector('.icons .list');
 var fang = {};
 
-window.onload = _ => {
-    try{
-        //stimulator._connect();
-    } catch(e) {
-        console.log(e);
-    }
+if ('serial' in navigator) {
+    navigator.serial.addEventListener('connect', event => {
+        
+        //gen_waves(form, g_freq, g_amp, g_offset);
+        console.log(" serial connect");
+    });
+    
+    navigator.serial.addEventListener('disconnect', event => {
+        // Remove event.device from the UI.
+        console.log("disconnect");
+    });
+   
 }
 
-navigator.serial.addEventListener('connect', event => {
+if ('usb' in navigator) {
+    navigator.usb.addEventListener('connect', event => {
+        // Add event.device to the UI.
+        stimulator._connect();
+        //gen_waves(form, g_freq, g_amp, g_offset);
+        console.log("usb connect");
+    });
     
-    //gen_waves(form, g_freq, g_amp, g_offset);
-    console.log(" serial connect");
-});
-  
-navigator.serial.addEventListener('disconnect', event => {
-    // Remove event.device from the UI.
-    console.log("disconnect");
-});
+    navigator.usb.addEventListener('disconnect', event => {
+        // Remove event.device from the UI.
+        alert('disconnect usb stimulator');
+        console.log("disconnect");
+    });    
+}
 
-navigator.usb.addEventListener('connect', event => {
-    // Add event.device to the UI.
-    stimulator._connect();
-    //gen_waves(form, g_freq, g_amp, g_offset);
-    console.log("usb connect");
-});
-  
-navigator.usb.addEventListener('disconnect', event => {
-    // Remove event.device from the UI.
-    alert('disconnect usb stimulator');
-    console.log("disconnect");
-});
 list_btn.addEventListener('click', () => {
     list.classList.remove('dark');
     list.classList.add('on');
@@ -123,9 +121,9 @@ function audioPlayer() {
             player.play();
             btn_small_icon.classList.add('pause');
             btn_big_icon.classList.add('pause');
-            if (stimulator._wave.length < 10) {
-                stimulator.fetch_wave_data('alpha.json');
-            } 
+            //if (stimulator._wave.length < 10) {
+            //    stimulator.fetch_wave_data('alpha.json');
+            //} 
             stimulator._looplay();
         }
     }
@@ -141,10 +139,8 @@ function audioPlayer() {
     var cir_left = document.querySelector('.circle-left');
     var rotate_wrap = document.querySelector('.circle-pic');
     //调幅
-    var btn_amp = document.getElementById('show_amp');
-    var v_amp = document.getElementById('amp_v');
 
-    player.addEventListener('timeupdate', updateProgress);
+    //player.addEventListener('timeupdate', updateProgress);
     player.addEventListener('loadedmetadata', function duration() {
         total_time.textContent = formatTime(player.duration);
     })
@@ -158,12 +154,17 @@ function audioPlayer() {
             progress.removeEventListener('touchmove', rewind);
         });
     })
-    
-    btn_amp.addEventListener('input', (e)=>{
-        stimulator.ampchange(btn_amp.value);
-        v_amp.innerHTML = btn_amp.value;
-        tryKeepScreenAlive(100 - btn_amp.value + 20);
-    })
+    setInterval(() => {
+        var current = Number(current_time.textContent.split(':')[0])*60 + Number(current_time.textContent.split(':')[1]) + 1;
+        var ratio = current /( Number(total_time.textContent.split(':')[0])*60 + Number(total_time.textContent.split(':')[1]));
+        var percent = ratio * 100;
+        var movement = ratio * progress_box.clientWidth;
+        progress_bar.style.width = percent + '%';
+        progress_handler.style.cssText = `transform: translate3d(${movement}px,0,0);`;
+        current_time.textContent = formatTime(current);
+        progressRotate(ratio);
+        autoRotate();
+    }, 1000);
 
     function inRange(e) {
         var rect = progress_box.getBoundingClientRect();
@@ -383,12 +384,12 @@ class Stimulator {
 
     ampchange(pct) {
         if (pct > 100)
-            amp = 100;
+            this._amp = 100;
         if (pct < 0)
-            amp = 0;
+            this._amp = 0;
         const valueType = Object.prototype.toString.call(this.chufang["waves_list"])
         if(this.chufang["waves_list"] != null) {
-            this._wave = this.chufang["waves_list"].map(v => v * amp / 100);
+            this._wave = this.chufang["waves_list"].map(v => v * this._amp / 100);
         }
         //console.log(pct);
     }
@@ -429,10 +430,8 @@ class Stimulator {
         fetch(location+url).then(res=>{
             return res.json();
         }).then(res=>{
-            var btn_amp = document.getElementById('show_amp');
-            var amp = btn_amp.value;
             this.chufang = res;
-            this._wave = res["waves_list"].map(v => v * amp / 100);
+            this._wave = res["waves_list"].map(v => v * this._amp / 100);
         });
     }
 }
@@ -445,9 +444,10 @@ function tryKeepScreenAlive(minutes) {
     } else {
         console.log("not support wakeLock"+'\r\n');
     }
-  }
+}
 
 var stimulator = new Stimulator();
+stimulator.fetch_wave_data('alpha.json');
 // 音乐池
 class MusicPool {
     constructor() {
@@ -526,8 +526,8 @@ var self_songs = self_wrap.querySelectorAll('.song-info');
 var warning = document.querySelector('.warning');
 
 player.addEventListener('ended', checkOrder);
-prev.addEventListener('click', checkOrder);
-next.addEventListener('click', checkOrder);
+prev.addEventListener('click', decreseamp);
+next.addEventListener('click', increseamp);
 
 // 判断此时属于哪种播放顺序从而确定如何执行下一步
 function checkOrder() {
@@ -543,9 +543,18 @@ function checkOrder() {
         var { mid, name, pic, singer, url ,cf} = pool.randomMusic();
     }
     change(mid, name, pic, singer, url);
-    stimulator.fetch_wave_data(cf);//todo
+    //stimulator.fetch_wave_data(cf);//todo
 }
 
+function increseamp() {
+    stimulator.ampchange(stimulator.amp - 10);
+    console.log("+");
+}
+
+function decreseamp() {
+    stimulator.ampchange(stimulator.amp + 10);
+    console.log("-");
+}
 // 最后一步歌曲信息的改变
 function change(mid, name, pic, singer, url, type) {
     if ( !judge(type, mid, name, singer) ) { return };
@@ -634,13 +643,21 @@ function showActiveMusic(mid) {
 
 // 点击播放顺序按钮切换
 (() => {
+    function formatTime(time) {
+        var min = Math.floor(time / 60);
+        var sec = Math.floor(time % 60);
+        return  min + ':' + (sec < 10 ? '0' + sec : sec);
+    }
     var i = 0;
     var classLists = ['loop', 'random','circle'];
+    var total_time = document.querySelector('.music-progress .total');
     order.addEventListener('click', () =>{
         i = i == 3 ? 0 : i;
         order.className = classLists[i];
         order.classList.contains('loop') ? player.setAttribute('loop', 'loop') : player.removeAttribute('loop');
-        i++;
+        i++;//i * 20 i=1/2/3
+        total_time.textContent = formatTime(i*20*60);
+        //stimulator.tryKeepScreenAlive(i*20);    //todo
     })
 })()
 
@@ -911,7 +928,7 @@ function markPageMid(e) {
         selection.setAttribute('song_mid', mid);
     }
 }
-
+blur.classList.add('show');
 // Service Worker Register
 if ( 'serviceWorker' in navigator ) {
     navigator.serviceWorker.register('/service_worker.js')

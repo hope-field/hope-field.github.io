@@ -53,9 +53,7 @@
                         </div>
                 </div>
                 <div class="foo-right">
-                    <div class="volume">
-                                            <label id="amp_v">60</label>
-                    </div>
+
                     <div class="player-btn">
                         <div class="circle">
                             <div class="circle-left">
@@ -81,6 +79,7 @@
                     <div class="p-name">安思定（缓解失眠、焦虑）</div>
                     <div class="p-singer"><i></i> &nbsp;<span>国际电医</span>&nbsp; <i></i></div>
                 </div>
+                
                 <div class="song-circle">
                     <div class="scale-wrap">
                         <span class="circle-pic"><i></i></span>
@@ -108,6 +107,11 @@
                         <i class="list"></i>
                     </div>
                 </div>
+                <div class="music-progress">
+                    <input id="show_amp" type="range" style="width: 70%;" min="0" max="100" step="10" value = "60">
+                    <span id="amp_v" style="font-size:10px;margin:10px;color:white;">60</span>
+                </div>
+                
             </div>
             <div class="blur-back">
                 <i></i>
@@ -150,5 +154,6 @@
 </body>
 <script src="/yinyue/js/tool.js"></script>
 <script src="/yinyue/js/serial.js"></script>
+<script src="/yinyue/js/state-machine.min.js"></script>
 <script src="/yinyue/js/index.js"></script>
 </html>

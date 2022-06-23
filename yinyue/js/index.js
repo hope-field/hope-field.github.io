@@ -248,7 +248,7 @@ class Stimulator {
     constructor() {
         this.chufang = {};
         this._wave = [];
-        this._amp = 100;
+        this._amp = 60;
         this._freq = 100;
         this._offset = 0;
         this.ticks = 0;
@@ -392,6 +392,7 @@ class Stimulator {
     }
 
     ampchange(pct) {
+        this._amp = pct;
         if (pct > 100)
             this._amp = 100;
         if (pct < 0)
@@ -556,12 +557,12 @@ function checkOrder() {
 }
 
 function increseamp() {
-    stimulator.ampchange(stimulator.amp - 10);
+    stimulator.offset += 10;
     console.log("+");
 }
 
 function decreseamp() {
-    stimulator.ampchange(stimulator.amp + 10);
+    stimulator.offset -= 10;
     console.log("-");
 }
 // 最后一步歌曲信息的改变

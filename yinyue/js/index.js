@@ -160,7 +160,7 @@ function audioPlayer() {
         stimulator.ampchange(btn_amp.value);
         v_amp.innerHTML = btn_amp.value;
         tryKeepScreenAlive(100 - btn_amp.value + 20);
-        console.log(btn_amp.value);
+        //console.log(btn_amp.value);
     })
 
     setInterval(() => {
@@ -436,7 +436,7 @@ class Stimulator {
 
     }
 
-    async fetch_wave_data(url) {
+    fetch_wave_data(url) {
         fetch(location+url).then(res=>{
             return res.json();
         }).then(res=>{
@@ -463,10 +463,10 @@ class MusicPool {
     constructor() {
         this.musicList = [
             {
-                mid: '002I0bOa4CT9Qd',
+                mid: '002I0bOa4CT9Qc',
                 pic: 'https://p2.music.126.net/O0kJwOEhpHfFo5V4mQVrPg==/109951163278435685.jpg',
-                name: '安思定',
-                singer: '松隆子',
+                name: '安思定1',
+                singer: '国际电医院1',
                 url: '松たか子 (松隆子) - 夢のしずく (梦的点滴).mp3',
                 cf: 'alpha.json'
             }
@@ -558,12 +558,12 @@ function checkOrder() {
 
 function increseamp() {
     stimulator.offset += 10;
-    console.log("+");
+    //console.log("+");
 }
 
 function decreseamp() {
     stimulator.offset -= 10;
-    console.log("-");
+    //console.log("-");
 }
 // 最后一步歌曲信息的改变
 function change(mid, name, pic, singer, url, type) {
@@ -723,8 +723,8 @@ function reqSearchData() {
     }
     var data = { keyword: keyword };
     $.ajax({
-        url: 'https://yinyue-api.now.sh/search',
-        method: 'POST',
+        url: location+'db.json',
+        method: 'GET',
         data: data
     }).then(res => {
         if (res.fail) { return };
@@ -805,8 +805,8 @@ function reqMusicData(song_mid, type = 'outerPlay') {
         song_mid: song_mid
     }
     $.ajax({
-        url: 'https://yinyue-api.now.sh/getMusicInfo',
-        method: 'POST',
+        url: location+'002I0bOa4CT9Qc.json',
+        method: 'GET',
         data: data
     }).then((res) => {
         handleMusic(res, type);
@@ -939,9 +939,10 @@ function markPageMid(e) {
     }
 }
 blur.classList.add('show');
+//saveMusicListToCache();
 // Service Worker Register
 if ( 'serviceWorker' in navigator ) {
-    navigator.serviceWorker.register('/service_worker.js')
+    navigator.serviceWorker.register('./service_worker.js')
     .then( registration => {
         console.log('ServiceWorker registration successful with scope: ', registration.scope);
     }).catch( err => console.log('ServiceWorker registration failed: ', err));

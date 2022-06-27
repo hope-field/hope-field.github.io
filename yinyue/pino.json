@@ -1,0 +1,19 @@
+{
+    "pic":"img/avatar.jpg",
+    "singer":"小松",
+    "singer_mid":"002I0bOa4CT9Rc",
+    "lists":[
+        {
+            "singer_name": "国际电医院1",
+            "song_mid": "002I0bOa4CT9Qc",
+            "song_name": "安思定1",
+            "cf": "alpha.json"
+        },
+        {
+            "singer_name": "国际电医院1",
+            "song_mid": "002I0bOa4CT9Qd",
+            "song_name": "安思定1",
+            "cf": "alpha.json"
+        }
+    ]
+}

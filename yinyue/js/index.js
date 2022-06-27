@@ -323,7 +323,7 @@ class Stimulator {
     }
 
     async pause() {
-
+        //clearTimeout();
     }
 
     async _read() {
@@ -805,7 +805,7 @@ function reqMusicData(song_mid, type = 'outerPlay') {
         song_mid: song_mid
     }
     $.ajax({
-        url: location+'002I0bOa4CT9Qc.json',
+        url: '002I0bOa4CT9Qc.json',
         method: 'GET',
         data: data
     }).then((res) => {
@@ -841,8 +841,8 @@ function reqSingerData(singer_mid) {
         singer_mid: singer_mid
     }
     $.ajax({
-        url: 'https://yinyue-api.now.sh/getSingerSongs',
-        method: 'POST',
+        url: 'pino.json',
+        method: 'GET',
         data: data
     }).then((res) => {
         handleSinger(res, singer_mid);

@@ -750,7 +750,7 @@ ul, li {
 }
 
 .container .add-music .selection .play_now::after {
-  content: '立即播放';
+  content: '立即刺激';
   position: absolute;
   top: 116%;
   left: -2%;
@@ -765,7 +765,7 @@ ul, li {
 }
 
 .container .add-music .selection .add_list::after {
-  content: '加入歌单';
+  content: '加入处方';
   position: absolute;
   top: 116%;
   left: -2%;

@@ -24,21 +24,6 @@ if ('serial' in navigator) {
    
 }
 
-if ('usb' in navigator) {
-    navigator.usb.addEventListener('connect', event => {
-        // Add event.device to the UI.
-        stimulator._connect();
-        //gen_waves(form, g_freq, g_amp, g_offset);
-        console.log("usb connect");
-    });
-    
-    navigator.usb.addEventListener('disconnect', event => {
-        // Remove event.device from the UI.
-        alert('disconnect usb stimulator');
-        console.log("disconnect");
-    });    
-}
-
 list_btn.addEventListener('click', () => {
     list.classList.remove('dark');
     list.classList.add('on');
@@ -117,6 +102,7 @@ function audioPlayer() {
             player.pause();
             btn_small_icon.classList.remove('pause');
             btn_big_icon.classList.remove('pause');
+            stimulator.pause();
         } else {
             player.play();
             btn_small_icon.classList.add('pause');
@@ -124,7 +110,13 @@ function audioPlayer() {
             //if (stimulator._wave.length < 10) {
             //    stimulator.fetch_wave_data('alpha.json');
             //} 
-            stimulator._looplay();
+
+            if (stimulator.func == null) {
+                stimulator._looplay();
+                stimulator.func = stimulator._looplay;
+            } else {
+                stimulator.status = 'playing';
+            }
         }
     }
 
@@ -143,7 +135,7 @@ function audioPlayer() {
     var v_amp = document.getElementById('amp_v');
     //player.addEventListener('timeupdate', updateProgress);
     player.addEventListener('loadedmetadata', function duration() {
-        total_time.textContent = formatTime(player.duration);
+        //total_time.textContent = formatTime(player.duration);
     })
     player.addEventListener('playing', () => {
         btn_big_icon.classList.add('pause');
@@ -163,16 +155,22 @@ function audioPlayer() {
         //console.log(btn_amp.value);
     })
 
-    setInterval(() => {
-        var current = Number(current_time.textContent.split(':')[0])*60 + Number(current_time.textContent.split(':')[1]) + 1;
+    let ps = setInterval(() => {
+        var current = stimulator.ts * 0.512 / 1000;
         var ratio = current /( Number(total_time.textContent.split(':')[0])*60 + Number(total_time.textContent.split(':')[1]));
         var percent = ratio * 100;
         var movement = ratio * progress_box.clientWidth;
+        if (ratio >= 1) {
+            current = 0;
+            percent = 0;
+            movement = 0;
+            clearInterval(ps);
+        }
         progress_bar.style.width = percent + '%';
         progress_handler.style.cssText = `transform: translate3d(${movement}px,0,0);`;
         current_time.textContent = formatTime(current);
-        progressRotate(ratio);
-        autoRotate();
+        //progressRotate(ratio);
+        //autoRotate();
     }, 1000);
 
     function inRange(e) {
@@ -214,7 +212,7 @@ function audioPlayer() {
     function formatTime(time) {
         var min = Math.floor(time / 60);
         var sec = Math.floor(time % 60);
-        return '0' + min + ':' + (sec < 10 ? '0' + sec : sec);
+        return (min < 10? '0' + min : min) + ':' + (sec < 10 ? '0' + sec : sec);
     }
 
     function progressRotate(ratio) {
@@ -248,7 +246,7 @@ class Stimulator {
     constructor() {
         this.chufang = {};
         this._wave = [];
-        this._amp = 60;
+        this._amp = 80;
         this._freq = 100;
         this._offset = 0;
         this.ticks = 0;
@@ -263,6 +261,48 @@ class Stimulator {
         this._bufferSize = 0;
         this._bufferPos = -1;
         this._buffer = [];
+        this.func = null;
+        this.status = 'stop';
+        this.event = 'none';
+        this.ts = 0;
+        //this.state=['unsed', 'linked', 'playing', '']
+        //this.startup();
+
+        //this.fsm.start();
+        //return this.fsm;
+    }
+
+    async   playing(event) {
+        var func = this.playing;
+        switch (event) {
+            case 'stop':
+                func = this.pause;
+                break;
+        
+            default:
+                await new Promise( (resolve) =>{
+                    let timer = setInterval(() =>{
+                        if(this.haveGroupList){
+                            clearInterval(timer)
+                            resolve(true)
+                        }
+                    },100)});
+                break;
+        }
+        return func;
+    }
+
+    async   startup() {
+        var func2 = null;
+        var i = 10;
+        while (this.func) {
+            func2 = await this.func(this.event);
+            this.event = 'stop';
+            if (this.func != func2 ) {
+                this.func = func2;
+                console.log('transition');
+            }
+        }
     }
 
     async _connect() {
@@ -305,7 +345,8 @@ class Stimulator {
                 
                 //const signals = await this._port.getSignals();
                 try {
-                    await this._read();
+                    //await this._read();
+                    await this.ioloop();
                 } catch {}
                 
                 try {
@@ -322,25 +363,173 @@ class Stimulator {
         }
     }
 
-    async pause() {
-        //clearTimeout();
+    async pause(event) {
+        this.status = 'stop';
+    }
+
+    processreader({ done, value }) {
+        if (done) {
+                return;
+        }
+
+        switch (this.status) {
+            case 'playing':
+                var todac;
+                
+                if (this.ticks+64 <= this._wave.length) {
+                    todac = new Uint8Array(this._wave.slice(this.ticks, this.ticks+64));
+                    this.ticks += 64;
+                } else {
+                    todac = new Uint8Array([this._wave.slice(this.ticks, this._wave.length), this._wave.slice(0, this.ticks+64-this._wave.length)].flat());
+                    this.ticks = this.ticks+64-this._wave.length;
+                }
+
+                this._writer.write(todac);
+
+                break;
+            case 'stop':
+                var zeros = new Uint16Array(32);
+                var todac = zeros.map(v => (-0.9298*v+0.1795))
+                    .map(v=>Math.round(((16383*1.0866)/5)*(2.5-v)))
+                    .flatMap(v=>[(v>>8)&0xFF, v&0xFF]);
+                this._writer.write(todac);
+                break;
+            default:
+                console.log('processreader');
+                break;
+        }
+    //await this.handlemsg(msgin);
+    //return this._reader.read().then(processreader);
+    }
+
+    async   ioloop() {
+        try {
+            this._reader = this._port.readable.getReader( ); //{ mode: "byob" }
+            this._writer = this._port.writable.getWriter();
+            var todac = new Uint8Array(64);
+            var zeros = new Array(32);
+            var dac0 = new Uint8Array(64);
+            zeros.fill(0);
+            dac0.set(zeros.map(v => (-0.9298*v+0.1795))
+                                .map(v=>Math.round(((16383*1.0866)/5)*(2.5-v)))
+                                .flatMap(v=>[(v>>8)&0xFF, v&0xFF]), 0);
+            this.status = 'playing';
+
+            while (true) {
+                await this._reader.read().then(({ done, value }) =>{
+                    if (done) {
+                        return;
+                    }
+            
+                    switch (this.status) {
+                        case 'playing':
+                            
+                            if (this.ticks+64 <= this._wave.length) {
+                                todac.set(this._wave.slice(this.ticks, this.ticks+64), 0);
+                                this.ticks += 64;
+                            } else {
+                                todac.set(this._wave.slice(this.ticks, this._wave.length), 0)
+                                todac.set(this._wave.slice(0, this.ticks+64-this._wave.length), this._wave.length - this.ticks);
+                                this.ticks = this.ticks+64-this._wave.length;
+                            }
+            
+                            this._writer.write(todac);
+                            this.ts += 32;
+                            break;
+                        case 'stop':
+
+                            this._writer.write(dac0);
+
+                            break;
+                        default:
+                            //console.log('processreader');
+                            break;
+                    }
+                });
+            }
+            
+                
+        } catch (e) {     
+            console.log(e);                          
+        } finally {
+            this._reader.releaseLock();
+            this._writer.releaseLock();
+            this.func = null;
+            this.status = null;
+        }
+    }
+
+    async handlemsg(value) {
+        if (value.length) {
+                    
+            var txlist = new Array(32);
+            var todac = new Uint8Array(64);
+            for(let j = 0; j < txlist.length; j++) {
+                txlist[j] = this._wave[(this.ticks + j) % this._wave.length];
+                let dacode = this.mA_2_DAC_write(txlist[j]*(-0.9298)+0.1795);
+                todac[2*j]=((dacode>>8)&0xFF);
+                todac[2*j+1]=(dacode&0xFF);
+            }
+
+            this._wave.map(x=>{});
+            await this._writer.write(todac);
+            this.ticks += txlist.length;
+
+            if ((this.ticks % this._wave.length) === 0) {
+                this.ticks = 0;
+            }
+
+        } else {
+            console.log(value.length+'\r\n');
+        }
+
+        return  todac;
     }
 
     async _read() {
         try {
-        let text = '';
+            this._reader = this._port.readable.getReader( ); //{ mode: "byob" }
+            this._writer = this._port.writable.getWriter();
+            let offset = 0;
+            let buffer = new ArrayBuffer(1024);
 
-        this._reader = this._port.readable.getReader( ); //{ mode: "byob" }
-        this._writer = this._port.writable.getWriter();
-        let offset = 0;
-        let buffer = new ArrayBuffer(1024);
-        //const buffer = await readInto(startingAB);
-
-        while (true) {
-            const { value, done } = await this._reader.read( );
-            if (done) {
-                break;
+            while (true) {
+                const { value, done } = await this._reader.read( );
+                if (done) {
+                    break;
+                }
+                if (value.length) {
+                
+                    var txlist = new Array(32);
+                    var todac = new Uint8Array(64);
+                    for(let j = 0; j < todac.length; j++) {
+                        todac[j]=this._wave[(this.ticks+j)%this._wave.length];
+                    }
+                    await this._writer.write(todac);
+                    this.ticks += todac.length;
+                    if ((this.ticks % this._wave.length) === 0) {
+                        this.ticks = 0;
+                    }
+                    //console.log(this.ticks +'\r\n', 'outserial', true);
+                    //text = '';
+                } else {
+                        console.log(value.length+'\r\n');
+                }
             }
+        } catch (e) {     
+            console.log(e);                          
+        } finally {
+            this._reader.releaseLock();
+            this._writer.releaseLock();
+        }
+        
+    }
+
+    async handlerequest(stream) {
+        try {
+            this._writer = this._port.writable.getWriter();
+            let offset = 0;
+            let buffer = new ArrayBuffer(1024);
             if (value.length) {
                 
                 var txlist = new Array(32);
@@ -361,17 +550,14 @@ class Stimulator {
                 } else {
                     console.log(value.length+'\r\n');
                 }
-            }
-        } catch (e) {     
-            console.log(e);                          
+        } catch (e) {
+            console.log(e);
         } finally {
-            this._reader.releaseLock();
             this._writer.releaseLock();
         }
-        
     }
 
-    async _write(msg) {
+    _write(msg) {
         this._writer = this._port.writable.getWriter();
 
         try {
@@ -379,10 +565,10 @@ class Stimulator {
 
             if (valueType === '[object Uint8Array]' ||
                 valueType === '[Promise Uint8Array]') {
-                await this._writer.write(msg);
+                this._writer.write(msg);
             } else {
                 const encoded = this._textencoder.encode(msg);
-                await this._writer.write(encoded);
+                this._writer.write(encoded);
             }
         } catch (e) {
             console.log(e);
@@ -399,7 +585,12 @@ class Stimulator {
             this._amp = 0;
         const valueType = Object.prototype.toString.call(this.chufang["waves_list"])
         if(this.chufang["waves_list"] != null) {
-            this._wave = this.chufang["waves_list"].map(v => v * this._amp / 100);
+                    //let dacode = this.mA_2_DAC_write(txlist[j]*(-0.9298)+0.1795);
+            console.time('map');
+            this._wave = new Uint8Array(this.chufang["waves_list"]
+            .map(v=>Math.round(((16383*1.0866)/5)*(2.5-(-0.9298*v+0.1795) * this._amp / 100)))
+            .flatMap(v=>[(v>>8)&0xFF, v&0xFF]));
+            console.timeEnd('map');
         }
         //console.log(pct);
     }
@@ -441,7 +632,7 @@ class Stimulator {
             return res.json();
         }).then(res=>{
             this.chufang = res;
-            this._wave = res["waves_list"].map(v => v * this._amp / 100);
+            this.ampchange(80);
         });
     }
 }
@@ -457,7 +648,7 @@ function tryKeepScreenAlive(minutes) {
 }
 
 var stimulator = new Stimulator();
-stimulator.fetch_wave_data('alpha.json');
+stimulator.fetch_wave_data('chufang/alpha.json');
 // 音乐池
 class MusicPool {
     constructor() {
@@ -467,8 +658,8 @@ class MusicPool {
                 pic: 'https://p2.music.126.net/O0kJwOEhpHfFo5V4mQVrPg==/109951163278435685.jpg',
                 name: '安思定1',
                 singer: '国际电医院1',
-                url: '松たか子 (松隆子) - 夢のしずく (梦的点滴).mp3',
-                cf: 'alpha.json'
+                url: 'music/松たか子 (松隆子) - 夢のしずく (梦的点滴).mp3',
+                cf: 'chufang/alpha.json'
             }
         ];
     }
@@ -805,7 +996,7 @@ function reqMusicData(song_mid, type = 'outerPlay') {
         song_mid: song_mid
     }
     $.ajax({
-        url: '002I0bOa4CT9Qc.json',
+        url: 'lists/'+song_mid+'.json',
         method: 'GET',
         data: data
     }).then((res) => {
@@ -1016,3 +1207,21 @@ getMusicListFromCache()
 .catch( err => {
     console.log(err);
 })
+
+if ('usb' in navigator) {
+    navigator.usb.addEventListener('connect', event => {
+        // Add event.device to the UI.
+        //stimulator._connect();
+        //gen_waves(form, g_freq, g_amp, g_offset);
+        console.log("usb connect");
+    });
+    
+    navigator.usb.addEventListener('disconnect', event => {
+        // Remove event.device from the UI.
+        //alert('disconnect usb stimulator');
+        warning.textContent = '设备已断开';
+        warning.classList.add('on');
+        setTimeout(() => { warning.classList.remove('on') }, 2000);
+        console.log("disconnect");
+    });    
+}

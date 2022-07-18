@@ -92,6 +92,8 @@ function audioPlayer() {
     var btn_big_icon = document.querySelector('.icons > i:nth-of-type(3)');
     var btn_small = document.querySelector('.circle');
     var btn_small_icon = btn_small.querySelector('i.btn');
+
+    var lock = null;
     
     btn_small.addEventListener('click', toggle);
     btn_big_icon.addEventListener('click', toggle);
@@ -103,6 +105,9 @@ function audioPlayer() {
             btn_small_icon.classList.remove('pause');
             btn_big_icon.classList.remove('pause');
             stimulator.pause();
+            if (lock) {
+                lock.release();
+            }
         } else {
             player.play();
             btn_small_icon.classList.add('pause');
@@ -110,10 +115,12 @@ function audioPlayer() {
             //if (stimulator._wave.length < 10) {
             //    stimulator.fetch_wave_data('alpha.json');
             //} 
-
+            if ("wakeLock" in navigator) {
+                lock = navigator.wakeLock.request("screen");
+            }
             if (stimulator.func == null) {
                 stimulator._looplay();
-                stimulator.func = stimulator._looplay;
+                //stimulator.func = stimulator._looplay;
             } else {
                 stimulator.status = 'playing';
             }
@@ -165,6 +172,7 @@ function audioPlayer() {
             percent = 0;
             movement = 0;
             clearInterval(ps);
+            btn_small.click();
         }
         progress_bar.style.width = percent + '%';
         progress_handler.style.cssText = `transform: translate3d(${movement}px,0,0);`;
@@ -248,15 +256,17 @@ class Stimulator {
         this._wave = [];
         this._amp = 80;
         this._freq = 100;
-        this._offset = 0;
+        this._offset = 0.0;
         this.ticks = 0;
         const br = window.localStorage.getItem('baud');
-        this._serialOptions = { baudRate: (br ? br : 9600), dataBits: 8, stopBits: 1, parity: 'none' };
+        this._serialOptions = { baudRate: (br ? br : 115200), dataBits: 8, stopBits: 1, parity: 'even' ,bufferSize: 8192, flowcontrol:'hardware'};
         this._port = null;
         this._reader = null;
         this._textdecoder = new TextDecoder();
         this._writer = null;
         this._textencoder = new TextEncoder();
+
+        this.recv = new Uint8Array(39062);
 
         this._bufferSize = 0;
         this._bufferPos = -1;
@@ -316,10 +326,12 @@ class Stimulator {
         this._port = null;
 
         try {
-            if ("serial" in navigator) {                        
+            if ("serial" in navigator) { 
                 this._port = await navigator.serial.requestPort();
-            } else if ("usb" in navigator) {                        
+                
+            } else if ("usb" in navigator) {  
                 this._port = await serial.requestPort();
+               
             } else {
                 console.log('neither serial nor usb is supported');
             }
@@ -339,7 +351,7 @@ class Stimulator {
             await this._connect();
         }
 
-        if (this._port != null) {
+        if (this._port) {
             try {
                 await this._port.open(this._serialOptions);
                 
@@ -403,59 +415,78 @@ class Stimulator {
     }
 
     async   ioloop() {
-        try {
+
+        this._writer = this._port.writable.getWriter();
+        var todac = new Uint8Array(64);
+        var zeros = new Array(32);
+        var dac0 = new Uint8Array(64);
+        zeros.fill(0);
+        dac0.set(zeros.map(v => (-0.9298*v+0.1795))
+                            .map(v=>Math.round(((16383*1.0866)/5)*(2.5-v)))
+                            .flatMap(v=>[(v>>8)&0xFF, v&0xFF]), 0);
+        this.status = 'playing';
+        this.func = this._looplay;
+
+        let rcnt = 0;
+        //await this._port.setsignals({dataTerminalReady: true});
+        //await this._port.setsignals({requestToSend: true});
+
+        while (this._port.readable) {
             this._reader = this._port.readable.getReader( ); //{ mode: "byob" }
-            this._writer = this._port.writable.getWriter();
-            var todac = new Uint8Array(64);
-            var zeros = new Array(32);
-            var dac0 = new Uint8Array(64);
-            zeros.fill(0);
-            dac0.set(zeros.map(v => (-0.9298*v+0.1795))
-                                .map(v=>Math.round(((16383*1.0866)/5)*(2.5-v)))
-                                .flatMap(v=>[(v>>8)&0xFF, v&0xFF]), 0);
-            this.status = 'playing';
-
-            while (true) {
-                await this._reader.read().then(({ done, value }) =>{
-                    if (done) {
-                        return;
-                    }
-            
-                    switch (this.status) {
-                        case 'playing':
-                            
-                            if (this.ticks+64 <= this._wave.length) {
-                                todac.set(this._wave.slice(this.ticks, this.ticks+64), 0);
-                                this.ticks += 64;
-                            } else {
-                                todac.set(this._wave.slice(this.ticks, this._wave.length), 0)
-                                todac.set(this._wave.slice(0, this.ticks+64-this._wave.length), this._wave.length - this.ticks);
-                                this.ticks = this.ticks+64-this._wave.length;
-                            }
-            
-                            this._writer.write(todac);
-                            this.ts += 32;
-                            break;
-                        case 'stop':
-
-                            this._writer.write(dac0);
-
-                            break;
-                        default:
-                            //console.log('processreader');
-                            break;
-                    }
-                });
-            }
-            
+            try {
+                while (true) {
+                    await this._reader.read().then(({ done, value }) =>{
+                        if (done) {
+                            this._reader.releaseLock();
+                            return;
+                        }
                 
-        } catch (e) {     
-            console.log(e);                          
-        } finally {
-            this._reader.releaseLock();
-            this._writer.releaseLock();
-            this.func = null;
-            this.status = null;
+                        if ((value.length > 2) && (rcnt + value.length < this._wave.length)) {
+                            this.recv.set(value.slice(2), rcnt);
+                            rcnt += (value.length - 2);
+                            //console.log(value);
+                        }
+
+                        switch (this.status) {
+                            case 'playing':
+                                for (let index = 0; index < 1; index++) {
+                                    if (this.ticks+64 <= this._wave.length) {
+                                        todac.set(this._wave.slice(this.ticks, this.ticks+64), 0);
+                                        this.ticks += 64;
+                                    } else {
+                                        todac.set(this._wave.slice(this.ticks, this._wave.length), 0)
+                                        todac.set(this._wave.slice(0, this.ticks+64-this._wave.length), this._wave.length - this.ticks);
+                                        this.ticks = this.ticks+64-this._wave.length;
+                                    }
+                                    
+                                    this._writer.ready.then(() => {
+                                        this._writer.write(todac);
+                                    });
+                                    this.ts += 32;
+                                }
+                                //this.ticks += 128;
+
+                                break;
+                            case 'stop':
+
+                                this._writer.write(dac0);
+
+                                break;
+                            default:
+                                //console.log('processreader');
+                                break;
+                        }
+                    });
+                }
+                
+            } catch (e) {
+                console.log(e);  
+            } finally {
+                this._reader.releaseLock();
+                this._writer.releaseLock();
+                this.func = null;
+                this.status = null;
+            }
         }
     }
 
@@ -587,7 +618,7 @@ class Stimulator {
         if(this.chufang["waves_list"] != null) {
                     //let dacode = this.mA_2_DAC_write(txlist[j]*(-0.9298)+0.1795);
             console.time('map');
-            this._wave = new Uint8Array(this.chufang["waves_list"]
+            this._wave = new Uint8Array (this.chufang["waves_list"]
             .map(v=>Math.round(((16383*1.0866)/5)*(2.5-(-0.9298*v+0.1795) * this._amp / 100)))
             .flatMap(v=>[(v>>8)&0xFF, v&0xFF]));
             console.timeEnd('map');
@@ -748,12 +779,12 @@ function checkOrder() {
 }
 
 function increseamp() {
-    stimulator.offset += 10;
+    stimulator._offset += 0.1;
     //console.log("+");
 }
 
 function decreseamp() {
-    stimulator.offset -= 10;
+    stimulator._offset -= 0.1;
     //console.log("-");
 }
 // 最后一步歌曲信息的改变
@@ -1211,9 +1242,11 @@ getMusicListFromCache()
 if ('usb' in navigator) {
     navigator.usb.addEventListener('connect', event => {
         // Add event.device to the UI.
+        warning.textContent = '设备已接入';
+        warning.classList.add('on');
+        setTimeout(() => { warning.classList.remove('on') }, 2000);
+        console.log("disconnect");
         //stimulator._connect();
-        //gen_waves(form, g_freq, g_amp, g_offset);
-        console.log("usb connect");
     });
     
     navigator.usb.addEventListener('disconnect', event => {

@@ -87,7 +87,7 @@ search_input.addEventListener('blur', () => {
 var player = document.querySelector('.player-fuc .audio');
 let wakelock = null;
 
-function audioPlayer() {
+async function audioPlayer() {
 
     // 播放暂停事件
     var btn_big_icon = document.querySelector('.icons > i:nth-of-type(3)');

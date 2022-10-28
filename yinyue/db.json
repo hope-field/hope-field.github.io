@@ -1,8 +1,8 @@
 [
     {
         "song_mid": "002I0bOa4CT9Qc",
-        "name": "安思定（助眠）",
-        "singer": "国际电医",
+        "name": "alpha-stim1",
+        "singer": "小松科技",
         "url": "松たか子 (松隆子) - 夢のしずく (梦的点滴).mp3"
     },
     {
@@ -27,7 +27,14 @@
     {
         "song_mid": "002I0bOa4CT9Qh",
         "pic": "https://p2.music.126.net/O0kJwOEhpHfFo5V4mQVrPg==/109951163278435685.jpg",
-        "name": "脉冲",
+        "name": "脉冲（生发、美容）",
+        "singer": "小松科技",
+        "url": "松たか子 (松隆子) - 夢のしずく (梦的点滴).mp3"
+    },
+    {
+        "song_mid": "002I0bOa4CT9Qi",
+        "pic": "https://p2.music.126.net/O0kJwOEhpHfFo5V4mQVrPg==/109951163278435685.jpg",
+        "name": "alpha-stim2",
         "singer": "小松科技",
         "url": "松たか子 (松隆子) - 夢のしずく (梦的点滴).mp3"
     }

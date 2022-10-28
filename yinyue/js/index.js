@@ -85,6 +85,7 @@ search_input.addEventListener('blur', () => {
 
 // audioElement
 var player = document.querySelector('.player-fuc .audio');
+let wakelock = null;
 
 function audioPlayer() {
 
@@ -105,8 +106,10 @@ function audioPlayer() {
             btn_small_icon.classList.remove('pause');
             btn_big_icon.classList.remove('pause');
             stimulator.pause();
-            if (lock) {
-                lock.release();
+            if (wakelock) {
+                await wakelock.release().then(()=>{
+                    wakelock = null;
+                });
             }
         } else {
             player.play();
@@ -116,7 +119,7 @@ function audioPlayer() {
             //    stimulator.fetch_wave_data('alpha.json');
             //} 
             if ("wakeLock" in navigator) {
-                lock = navigator.wakeLock.request("screen");
+                wakelock = navigator.wakeLock.request("screen");
             }
             if (stimulator.func == null) {
                 stimulator._looplay();

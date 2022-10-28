@@ -99,7 +99,7 @@ async function audioPlayer() {
     btn_small.addEventListener('click', toggle);
     btn_big_icon.addEventListener('click', toggle);
 
-    function toggle(e) {
+    async function toggle(e) {
         var icon = e.target.matches('.circle, .circle *') ? btn_small_icon : btn_big_icon;
         if ( icon.classList.contains('pause') ) {
             player.pause();

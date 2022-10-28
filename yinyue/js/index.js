@@ -404,7 +404,7 @@ class Stimulator {
                 break;
             case 'stop':
                 var zeros = new Uint16Array(32);
-                var todac = zeros.map(v => (-0.9298*v+0.1795))
+                var todac = zeros.map(v => (v+0.034))
                     .map(v=>Math.round(((16383*1.0866)/5)*(2.5-v)))
                     .flatMap(v=>[(v>>8)&0xFF, v&0xFF]);
                 this._writer.write(todac);
@@ -424,7 +424,7 @@ class Stimulator {
         var zeros = new Array(32);
         var dac0 = new Uint8Array(64);
         zeros.fill(0);
-        dac0.set(zeros.map(v => (-0.9298*v+0.1795))
+        dac0.set(zeros.map(v => (v+0.034))
                             .map(v=>Math.round(((16383*1.0866)/5)*(2.5-v)))
                             .flatMap(v=>[(v>>8)&0xFF, v&0xFF]), 0);
         this.status = 'playing';
@@ -622,7 +622,7 @@ class Stimulator {
                     //let dacode = this.mA_2_DAC_write(txlist[j]*(-0.9298)+0.1795);
             console.time('map');
             this._wave = new Uint8Array (this.chufang["waves_list"]
-            .map(v=>Math.round(((16383*1.0866)/5)*(2.5-(-0.9298*v+0.1795) * this._amp / 100)))
+            .map(v=>Math.round(((16383*1.0866)/5)*(2.5-(v+0.034) * this._amp / 100)))
             .flatMap(v=>[(v>>8)&0xFF, v&0xFF]));
             console.timeEnd('map');
         }
@@ -650,7 +650,7 @@ class Stimulator {
         try {
             this._writer = this._port.writable.getWriter();
             for (let index = 0; index < listof128_values_in_mA.length; index++) {
-                let dacode = this.mA_2_DAC_write(listof128_values_in_mA[index]*(-0.9298)+0.1795);
+                let dacode = this.mA_2_DAC_write(listof128_values_in_mA[index]*+0.034);
                 await this._writer.write(dacode);
             }
        } catch (error) {

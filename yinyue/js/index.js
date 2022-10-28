@@ -119,7 +119,7 @@ async function audioPlayer() {
             //    stimulator.fetch_wave_data('alpha.json');
             //} 
             if ("wakeLock" in navigator) {
-                wakelock = navigator.wakeLock.request("screen");
+                wakelock = await navigator.wakeLock.request("screen");
             }
             if (stimulator.func == null) {
                 stimulator._looplay();

@@ -452,7 +452,7 @@ class Stimulator {
 
                         switch (this.status) {
                             case 'playing':
-                                for (let index = 0; index < 1; index++) {
+                                for (let index = 0; index < 2; index++) {
                                     if (this.ticks+64 <= this._wave.length) {
                                         todac.set(this._wave.slice(this.ticks, this.ticks+64), 0);
                                         this.ticks += 64;
@@ -462,10 +462,13 @@ class Stimulator {
                                         this.ticks = this.ticks+64-this._wave.length;
                                     }
                                     
-                                    this._writer.ready.then(() => {
-                                        this._writer.write(todac);
-                                    });
-                                    this.ts += 32;
+                                    this._writer.ready
+                                    .then(
+                                        this._writer.write(todac)
+                                    )
+                                    .then(()=>
+                                        this.ts += 32;)
+                                    .catch(r=>{console.log(r)});
                                 }
                                 //this.ticks += 128;
 

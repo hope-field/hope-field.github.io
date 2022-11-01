@@ -466,8 +466,8 @@ class Stimulator {
                                     .then(
                                         this._writer.write(todac)
                                     )
-                                    .then(()=>
-                                        this.ts += 32;)
+                                    .then(()=>{
+                                        this.ts += 32;})
                                     .catch(r=>{console.log(r)});
                                 }
                                 //this.ticks += 128;

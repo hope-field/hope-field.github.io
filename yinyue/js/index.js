@@ -625,7 +625,7 @@ class Stimulator {
                     //let dacode = this.mA_2_DAC_write(txlist[j]*(-0.9298)+0.1795);
             console.time('map');
             this._wave = new Uint8Array (this.chufang["waves_list"]
-            .map(v=>Math.round(((16383*1.0866)/5)*(2.5-(v+0.034) * this._amp / 100)))
+            .map(v=>Math.round(((16383*1.0866)/5)*(2.5-v * this._amp / 100)))
             .flatMap(v=>[(v>>8)&0xFF, v&0xFF]));
             console.timeEnd('map');
         }

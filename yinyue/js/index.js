@@ -438,7 +438,7 @@ class Stimulator {
             this._reader = this._port.readable.getReader( ); //{ mode: "byob" }
             try {
                 while (true) {
-                    await this._reader.read().then(({ done, value }) =>{
+                    await this._reader.read().then(async ({ done, value }) =>{
                         if (done) {
                             this._reader.releaseLock();
                             return;
@@ -462,10 +462,10 @@ class Stimulator {
                                         this.ticks = this.ticks+64-this._wave.length;
                                     }
                                     
-                                    this._writer.ready
-                                    .then(
-                                        this._writer.write(todac)
-                                    )
+                                    await this._writer.ready
+                                    .then(async () => {
+                                        await this._writer.write(todac);
+                                    })
                                     .then(()=>{
                                         this.ts += 32;})
                                     .catch(r=>{console.log(r)});
@@ -475,7 +475,7 @@ class Stimulator {
                                 break;
                             case 'stop':
 
-                                this._writer.write(dac0);
+                                await this._writer.write(dac0);
 
                                 break;
                             default:

@@ -10,19 +10,79 @@ var list_btn = document.querySelector('.list-icon');
 var list_dark_btn = document.querySelector('.icons .list');
 var fang = {};
 
+const stimulator = new Worker("/yinyue/js/webusbworker.js");
+
 if ('serial' in navigator) {
+
     navigator.serial.addEventListener('connect', event => {
-        
+        let vid = event.target.getInfo().usbVendorId;
+        let pid = event.target.getInfo().usbProductId;
+
+        stimulator.postMessage({action:'connect',vendorId: vid, productId: pid});
         //gen_waves(form, g_freq, g_amp, g_offset);
-        console.log(" serial connect");
+        //console.log('serial in:', event.target.getInfo());
     });
     
     navigator.serial.addEventListener('disconnect', event => {
         // Remove event.device from the UI.
         console.log("disconnect");
     });
-   
+
+} else if ('usb' in navigator) {
+    navigator.usb.addEventListener('connect', event => {
+        let vid = event.target.vendorId;
+        let pid = event.target.productId;
+        stimulator.postMessage({action:'connect',vendorId: vid, productId: pid});
+        // Add event.device to the UI.
+        warning.textContent = event.device.productName;
+        warning.classList.add('on');
+        setTimeout(() => { warning.classList.remove('on') }, 2000);
+        console.log('usb in:', event.device.productName);
+        //stimulator._connect();
+    });
+    
+    navigator.usb.addEventListener('disconnect', event => {
+        // Remove event.device from the UI.
+        //alert('disconnect usb stimulator');
+        warning.textContent = '设备已断开';
+        warning.classList.add('on');
+        setTimeout(() => { warning.classList.remove('on') }, 2000);
+        //if(stimulator.status == "playing") {
+        //    stimulator.pause();
+        //}
+        stimulator.postMessage({cmd:'disconnect'});
+        console.log("disconnect");
+    });    
 }
+//windows.onload=function() {
+document.addEventListener('DOMContentLoaded', async function () {
+    //console.log('documentload');
+    if ('serial' in navigator) {
+        let ports = await navigator.serial.getPorts();
+        //console.log(ports);
+        if (ports.length) {
+            ports.forEach(port => {
+                let v = port.getInfo().usbVendorId;
+                let p = port.getInfo().usbProductId;
+                if (v && p) {
+                    stimulator.postMessage({action:'connect', vendorId:v, productId:p});
+                }
+            });
+        }
+    } else if ('usb' in navigator) {
+        let devs = await navigator.usb.getDevices();
+        if(devs.length) {
+            devs.forEach(dev=> {
+                let v = dev.venderId;
+                let p = dev.productId;
+                if (v && p) {
+                    stimulator.postMessage({action:'connect', venderId,v, productId,p});
+                }
+            });
+        }
+    }
+    //stimulator.postMessage({action:'preset', amp:80, time:20, offset:0, freq:0});
+});
 
 list_btn.addEventListener('click', () => {
     list.classList.remove('dark');
@@ -68,6 +128,9 @@ var blur_back = document.querySelector('.blur-back');
 avatar.addEventListener('click', () => {
     blur.classList.add('show');
 })
+blur_back.addEventListener('click', () => {
+    blur.classList.remove('show');
+})
 blur_back.addEventListener('touchstart', () => {
     blur.classList.remove('show');
 })
@@ -86,6 +149,100 @@ search_input.addEventListener('blur', () => {
 // audioElement
 var player = document.querySelector('.player-fuc .audio');
 let wakelock = null;
+let wav;
+
+function fetch_wave_data(url) {
+    //console.log(location+url);
+      return (location+url);
+  }
+
+stimulator.onerror = function (e) {
+    console.log('ERROR: Line ', e.lineno, ' in ', e.filename, ': ', e.message);
+};
+
+async function connect() {
+    let dev;
+    const usbFilters = 0xcafe;
+    const usbVendorId = 0xcafe;
+
+    var vid, pid;
+    if ('serial' in navigator) {
+        dev = await navigator.serial.requestPort({ filters: [{ usbVendorId }]} );
+        vid = dev.getInfo().usbVendorId;
+        pid = dev.getInfo().usbProductId;
+        console.log(dev.getInfo().productName);
+    } else if ('usb' in navigator) { 
+        dev = await navigator.usb.requestDevice({ filters: [{ usbFilters }]});
+        vid = dev.vendorId;
+        pid = dev.productId;
+    } else {
+        console.log('neither serial nor usb is supported');
+    }
+
+    if (dev) {
+        console.log('vid:pid:', vid,pid);
+        stimulator.postMessage({action:'connect',vendorId: vid, productId: pid});
+    } else {
+        console.log('dev faile');
+    }
+}
+
+function formatTime(time) {
+    var min = Math.floor(time / 60);
+    var sec = Math.floor(time % 60);
+    return (min < 10? '0' + min : min) + ':' + (sec < 10 ? '0' + sec : sec);
+}
+
+function progress2(ts) {
+    var progress = document.querySelector('.music-progress');
+    var progress_bar = document.querySelector('.progress-bar');
+    var progress_box = document.querySelector('.progress-tracker');
+    var progress_handler = document.querySelector('.progress-handler');
+    var current_time = document.querySelector('.music-progress .present');
+    var total_time = document.querySelector('.music-progress .total');
+    var btn_small = document.querySelector('.circle');
+    
+    var current = ts * 0.512 / 1000;
+    var ratio = current /( Number(total_time.textContent.split(':')[0])*60 + Number(total_time.textContent.split(':')[1]));
+    var percent = ratio * 100;
+    var movement = ratio * progress_box.clientWidth;
+    
+    progress_bar.style.width = percent + '%';
+    progress_handler.style.cssText = `transform: translate3d(${movement}px,0,0);`;
+    current_time.textContent = formatTime(current);
+    //progressRotate(ratio);
+    //autoRotate();
+}
+
+var timeline=null;
+
+stimulator.onmessage = async function(event) {
+    switch(event.data.reply) {
+        case 'connected':
+            //console.log('device opened!');
+            //stimulator.postMessage({action:'play', url:location+'chufang/alpha.json'});
+            //console.log(fetch_wave_data('chufang/alpha.json'));
+            break;
+        case 'timeout':
+            console.log(event.data);
+            if (wakelock) {
+                await wakelock.release().then(()=>{
+                    wakelock = null;
+                });
+            }
+            progress2(0);
+            break;
+        case 'tick':
+            progress2(event.data.timeline);
+            break;
+        case 'null':
+            await connect();
+            break;
+        default:
+            console.log(event.data);
+            break;
+    }
+};
 
 async function audioPlayer() {
 
@@ -93,11 +250,11 @@ async function audioPlayer() {
     var btn_big_icon = document.querySelector('.icons > i:nth-of-type(3)');
     var btn_small = document.querySelector('.circle');
     var btn_small_icon = btn_small.querySelector('i.btn');
-
-    var lock = null;
-    
+ 
     btn_small.addEventListener('click', toggle);
     btn_big_icon.addEventListener('click', toggle);
+
+    var j = 1;
 
     async function toggle(e) {
         var icon = e.target.matches('.circle, .circle *') ? btn_small_icon : btn_big_icon;
@@ -105,7 +262,9 @@ async function audioPlayer() {
             player.pause();
             btn_small_icon.classList.remove('pause');
             btn_big_icon.classList.remove('pause');
-            stimulator.pause();
+
+            stimulator.postMessage({action:'pause'});
+            //stimulator.pause();
             if (wakelock) {
                 await wakelock.release().then(()=>{
                     wakelock = null;
@@ -115,17 +274,13 @@ async function audioPlayer() {
             player.play();
             btn_small_icon.classList.add('pause');
             btn_big_icon.classList.add('pause');
-            //if (stimulator._wave.length < 10) {
-            //    stimulator.fetch_wave_data('alpha.json');
-            //} 
+            let key = player.getAttribute('mid');
+            var { mid, name, pic, singer, url ,cf} = pool.findMusic(key);
+            //console.log(cf);
+            stimulator.postMessage({action:'play', src:fetch_wave_data(cf), amp:btn_amp.value, 
+            time:total_time.textContent.split(':')[0], offset:0.0, freq:0.0});
             if ("wakeLock" in navigator) {
                 wakelock = await navigator.wakeLock.request("screen");
-            }
-            if (stimulator.func == null) {
-                stimulator._looplay();
-                //stimulator.func = stimulator._looplay;
-            } else {
-                stimulator.status = 'playing';
             }
         }
     }
@@ -143,7 +298,7 @@ async function audioPlayer() {
     //调幅
     var btn_amp = document.getElementById('show_amp');
     var v_amp = document.getElementById('amp_v');
-    //player.addEventListener('timeupdate', updateProgress);
+    player.addEventListener('timeupdate', updateProgress);
     player.addEventListener('loadedmetadata', function duration() {
         //total_time.textContent = formatTime(player.duration);
     })
@@ -159,30 +314,18 @@ async function audioPlayer() {
     })
 
     btn_amp.addEventListener('input', (e)=>{
-        stimulator.ampchange(btn_amp.value);
+        //stimulator.ampchange(btn_amp.value);
+        stimulator.postMessage({action:'set', amp:btn_amp.value});
         v_amp.innerHTML = btn_amp.value;
-        tryKeepScreenAlive(100 - btn_amp.value + 20);
-        //console.log(btn_amp.value);
+        //tryKeepScreenAlive(100 - btn_amp.value + 20);
     })
 
-    let ps = setInterval(() => {
-        var current = stimulator.ts * 0.512 / 1000;
-        var ratio = current /( Number(total_time.textContent.split(':')[0])*60 + Number(total_time.textContent.split(':')[1]));
-        var percent = ratio * 100;
-        var movement = ratio * progress_box.clientWidth;
-        if (ratio >= 1) {
-            current = 0;
-            percent = 0;
-            movement = 0;
-            clearInterval(ps);
-            btn_small.click();
-        }
-        progress_bar.style.width = percent + '%';
-        progress_handler.style.cssText = `transform: translate3d(${movement}px,0,0);`;
-        current_time.textContent = formatTime(current);
-        //progressRotate(ratio);
-        //autoRotate();
-    }, 1000);
+    total_time.addEventListener('click', () => {
+        j = j++ >= 3?1:j;
+        total_time.textContent = formatTime(j*20*60);
+        stimulator.postMessage({action:'set', time:j*20});
+        //tryKeepScreenAlive(j*20);    //todo
+    })
 
     function inRange(e) {
         var rect = progress_box.getBoundingClientRect();
@@ -213,11 +356,36 @@ async function audioPlayer() {
         var ratio = current / player.duration;
         var percent = ratio * 100;
         var movement = ratio * progress_box.clientWidth;
+        //progress_bar.style.width = percent + '%';
+        //progress_handler.style.cssText = `transform: translate3d(${movement}px,0,0);`;
+        //current_time.textContent = formatTime(current);
+        progressRotate(ratio);
+        autoRotate();
+    }
+
+    function progress(ts) {
+        var progress = document.querySelector('.music-progress');
+        var progress_bar = document.querySelector('.progress-bar');
+        var progress_box = document.querySelector('.progress-tracker');
+        var progress_handler = document.querySelector('.progress-handler');
+        var current_time = document.querySelector('.music-progress .present');
+        var total_time = document.querySelector('.music-progress .total');
+    
+        var current = ts * 0.512 / 1000;
+        var ratio = current /( Number(total_time.textContent.split(':')[0])*60 + Number(total_time.textContent.split(':')[1]));
+        var percent = ratio * 100;
+        var movement = ratio * progress_box.clientWidth;
+        if (ratio >= 1) {
+            current = 0;
+            percent = 0;
+            movement = 0;
+            btn_small.click();
+        }
         progress_bar.style.width = percent + '%';
         progress_handler.style.cssText = `transform: translate3d(${movement}px,0,0);`;
         current_time.textContent = formatTime(current);
-        progressRotate(ratio);
-        autoRotate();
+        //progressRotate(ratio);
+        //autoRotate();
     }
 
     function formatTime(time) {
@@ -251,428 +419,9 @@ async function audioPlayer() {
 
 }
 audioPlayer();
-
+const sleep = (delay) => new Promise((resolve) => setTimeout(resolve, delay))
 // 治疗api
-class Stimulator {
-    constructor() {
-        this.chufang = {};
-        this._wave = [];
-        this._amp = 80;
-        this._freq = 100;
-        this._offset = 0.0;
-        this.ticks = 0;
-        const br = window.localStorage.getItem('baud');
-        this._serialOptions = { baudRate: (br ? br : 115200), dataBits: 8, stopBits: 1, parity: 'even' ,bufferSize: 8192, flowcontrol:'hardware'};
-        this._port = null;
-        this._reader = null;
-        this._textdecoder = new TextDecoder();
-        this._writer = null;
-        this._textencoder = new TextEncoder();
 
-        this.recv = new Uint8Array(39062);
-
-        this._bufferSize = 0;
-        this._bufferPos = -1;
-        this._buffer = [];
-        this.func = null;
-        this.status = 'stop';
-        this.event = 'none';
-        this.ts = 0;
-        //this.state=['unsed', 'linked', 'playing', '']
-        //this.startup();
-
-        //this.fsm.start();
-        //return this.fsm;
-    }
-
-    async   playing(event) {
-        var func = this.playing;
-        switch (event) {
-            case 'stop':
-                func = this.pause;
-                break;
-        
-            default:
-                await new Promise( (resolve) =>{
-                    let timer = setInterval(() =>{
-                        if(this.haveGroupList){
-                            clearInterval(timer)
-                            resolve(true)
-                        }
-                    },100)});
-                break;
-        }
-        return func;
-    }
-
-    async   startup() {
-        var func2 = null;
-        var i = 10;
-        while (this.func) {
-            func2 = await this.func(this.event);
-            this.event = 'stop';
-            if (this.func != func2 ) {
-                this.func = func2;
-                console.log('transition');
-            }
-        }
-    }
-
-    async _connect() {
-        if (this._port !== null && this._port.open) {
-            if (this._reader !== null) {
-                this._reader.cancel();
-            }
-            return;
-        }
-
-        this._port = null;
-
-        try {
-            if ("serial" in navigator) { 
-                this._port = await navigator.serial.requestPort();
-                
-            } else if ("usb" in navigator) {  
-                this._port = await serial.requestPort();
-               
-            } else {
-                console.log('neither serial nor usb is supported');
-            }
-        } catch (e) {
-            if (e.name === 'NotFoundError') {
-                console.log('nothing selected - not connecting');
-            } else {
-                console.log(e);
-            }                    
-            this._port = null;
-        }
-
-    }
-
-    async _looplay() {
-        if (this._port == null) {
-            await this._connect();
-        }
-
-        if (this._port) {
-            try {
-                await this._port.open(this._serialOptions);
-                
-                //const signals = await this._port.getSignals();
-                try {
-                    //await this._read();
-                    await this.ioloop();
-                } catch {}
-                
-                try {
-                    await this._port.close();
-                } catch {}
-                
-                this._port = null;
-
-            } catch (e) {                        
-                console.log(e);
-            }
-        } else {
-            console.log('nothing port connect\n');
-        }
-    }
-
-    async pause(event) {
-        this.status = 'stop';
-    }
-
-    processreader({ done, value }) {
-        if (done) {
-                return;
-        }
-
-        switch (this.status) {
-            case 'playing':
-                var todac;
-                
-                if (this.ticks+64 <= this._wave.length) {
-                    todac = new Uint8Array(this._wave.slice(this.ticks, this.ticks+64));
-                    this.ticks += 64;
-                } else {
-                    todac = new Uint8Array([this._wave.slice(this.ticks, this._wave.length), this._wave.slice(0, this.ticks+64-this._wave.length)].flat());
-                    this.ticks = this.ticks+64-this._wave.length;
-                }
-
-                this._writer.write(todac);
-
-                break;
-            case 'stop':
-                var zeros = new Uint16Array(32);
-                var todac = zeros.map(v => (v+0.034))
-                    .map(v=>Math.round(((16383*1.0866)/5)*(2.5-v)))
-                    .flatMap(v=>[(v>>8)&0xFF, v&0xFF]);
-                this._writer.write(todac);
-                break;
-            default:
-                console.log('processreader');
-                break;
-        }
-    //await this.handlemsg(msgin);
-    //return this._reader.read().then(processreader);
-    }
-
-    async   ioloop() {
-
-        this._writer = this._port.writable.getWriter();
-        var todac = new Uint8Array(64);
-        var zeros = new Array(32);
-        var dac0 = new Uint8Array(64);
-        zeros.fill(0);
-        dac0.set(zeros.map(v => (v+0.034))
-                            .map(v=>Math.round(((16383*1.0866)/5)*(2.5-v)))
-                            .flatMap(v=>[(v>>8)&0xFF, v&0xFF]), 0);
-        this.status = 'playing';
-        this.func = this._looplay;
-
-        let rcnt = 0;
-        //await this._port.setsignals({dataTerminalReady: true});
-        //await this._port.setsignals({requestToSend: true});
-
-        while (this._port.readable) {
-            this._reader = this._port.readable.getReader( ); //{ mode: "byob" }
-            try {
-                while (true) {
-                    await this._reader.read().then(async ({ done, value }) =>{
-                        if (done) {
-                            this._reader.releaseLock();
-                            return;
-                        }
-                
-                        if ((value.length > 2) && (rcnt + value.length < this._wave.length)) {
-                            this.recv.set(value.slice(2), rcnt);
-                            rcnt += (value.length - 2);
-                            //console.log(value);
-                        }
-
-                        switch (this.status) {
-                            case 'playing':
-                                for (let index = 0; index < 1; index++) {
-                                    if (this.ticks+64 <= this._wave.length) {
-                                        todac.set(this._wave.slice(this.ticks, this.ticks+64), 0);
-                                        this.ticks += 64;
-                                    } else {
-                                        todac.set(this._wave.slice(this.ticks, this._wave.length), 0)
-                                        todac.set(this._wave.slice(0, this.ticks+64-this._wave.length), this._wave.length - this.ticks);
-                                        this.ticks = this.ticks+64-this._wave.length;
-                                    }
-                                    
-                                    await this._writer.ready
-                                    .then(async () => {
-                                        await this._writer.write(todac);
-                                    })
-                                    .then(()=>{
-                                        this.ts += 32;})
-                                    .catch(r=>{console.log(r)});
-                                }
-                                //this.ticks += 128;
-
-                                break;
-                            case 'stop':
-
-                                await this._writer.write(dac0);
-
-                                break;
-                            default:
-                                //console.log('processreader');
-                                break;
-                        }
-                    });
-                }
-                
-            } catch (e) {
-                console.log(e);  
-            } finally {
-                this._reader.releaseLock();
-                this._writer.releaseLock();
-                this.func = null;
-                this.status = null;
-            }
-        }
-    }
-
-    async handlemsg(value) {
-        if (value.length) {
-                    
-            var txlist = new Array(32);
-            var todac = new Uint8Array(64);
-            for(let j = 0; j < txlist.length; j++) {
-                txlist[j] = this._wave[(this.ticks + j) % this._wave.length];
-                let dacode = this.mA_2_DAC_write(txlist[j]*(-0.9298)+0.1795);
-                todac[2*j]=((dacode>>8)&0xFF);
-                todac[2*j+1]=(dacode&0xFF);
-            }
-
-            this._wave.map(x=>{});
-            await this._writer.write(todac);
-            this.ticks += txlist.length;
-
-            if ((this.ticks % this._wave.length) === 0) {
-                this.ticks = 0;
-            }
-
-        } else {
-            console.log(value.length+'\r\n');
-        }
-
-        return  todac;
-    }
-
-    async _read() {
-        try {
-            this._reader = this._port.readable.getReader( ); //{ mode: "byob" }
-            this._writer = this._port.writable.getWriter();
-            let offset = 0;
-            let buffer = new ArrayBuffer(1024);
-
-            while (true) {
-                const { value, done } = await this._reader.read( );
-                if (done) {
-                    break;
-                }
-                if (value.length) {
-                
-                    var txlist = new Array(32);
-                    var todac = new Uint8Array(64);
-                    for(let j = 0; j < todac.length; j++) {
-                        todac[j]=this._wave[(this.ticks+j)%this._wave.length];
-                    }
-                    await this._writer.write(todac);
-                    this.ticks += todac.length;
-                    if ((this.ticks % this._wave.length) === 0) {
-                        this.ticks = 0;
-                    }
-                    //console.log(this.ticks +'\r\n', 'outserial', true);
-                    //text = '';
-                } else {
-                        console.log(value.length+'\r\n');
-                }
-            }
-        } catch (e) {     
-            console.log(e);                          
-        } finally {
-            this._reader.releaseLock();
-            this._writer.releaseLock();
-        }
-        
-    }
-
-    async handlerequest(stream) {
-        try {
-            this._writer = this._port.writable.getWriter();
-            let offset = 0;
-            let buffer = new ArrayBuffer(1024);
-            if (value.length) {
-                
-                var txlist = new Array(32);
-                var todac = new Uint8Array(64);
-                for(let j = 0; j < txlist.length; j++) {
-                    txlist[j] = this._wave[(this.ticks + j) % this._wave.length];
-                    let dacode = this.mA_2_DAC_write(txlist[j]*(-0.9298)+0.1795);
-                    todac[2*j]=((dacode>>8)&0xFF);
-                    todac[2*j+1]=(dacode&0xFF);
-                }
-                await this._writer.write(todac);
-                this.ticks += txlist.length;
-                if ((this.ticks % this._wave.length) === 0) {
-                    this.ticks = 0;
-                }
-                //console.log(this.ticks +'\r\n', 'outserial', true);
-                text = '';
-                } else {
-                    console.log(value.length+'\r\n');
-                }
-        } catch (e) {
-            console.log(e);
-        } finally {
-            this._writer.releaseLock();
-        }
-    }
-
-    _write(msg) {
-        this._writer = this._port.writable.getWriter();
-
-        try {
-            const valueType = Object.prototype.toString.call(msg);
-
-            if (valueType === '[object Uint8Array]' ||
-                valueType === '[Promise Uint8Array]') {
-                this._writer.write(msg);
-            } else {
-                const encoded = this._textencoder.encode(msg);
-                this._writer.write(encoded);
-            }
-        } catch (e) {
-            console.log(e);
-        }
-
-        this._writer.releaseLock();
-    }
-
-    ampchange(pct) {
-        this._amp = pct;
-        if (pct > 100)
-            this._amp = 100;
-        if (pct < 0)
-            this._amp = 0;
-        const valueType = Object.prototype.toString.call(this.chufang["waves_list"])
-        if(this.chufang["waves_list"] != null) {
-                    //let dacode = this.mA_2_DAC_write(txlist[j]*(-0.9298)+0.1795);
-            console.time('map');
-            this._wave = new Uint8Array (this.chufang["waves_list"]
-            .map(v=>Math.round(((16383*1.0866)/5)*(2.5-v * this._amp / 100)))
-            .flatMap(v=>[(v>>8)&0xFF, v&0xFF]));
-            console.timeEnd('map');
-        }
-        //console.log(pct);
-    }
-
-    mA_2_DAC_write(value_in_mA)
-    {
-        if(value_in_mA > 2.002)
-            value_in_mA = 2.001;
-        if(value_in_mA < -2.002)
-            value_in_mA = -2.001;
-        let dacwrite = (Math.round(((16383*1.0866)/5)*(2.5-value_in_mA)));
-        //console.log(dacwrite);
-        return dacwrite;
-    }
-
-    async tx_128_mA_values(listof128_values_in_mA)
-    {
-        var data_to_transmate=[];
-        /*listof128_values_in_mA.forEach(async(it) => {
-            let code = this.mA_2_DAC_write(it*(-0.9298)+0.1795);
-            await this._write(code);
-        });*/
-        try {
-            this._writer = this._port.writable.getWriter();
-            for (let index = 0; index < listof128_values_in_mA.length; index++) {
-                let dacode = this.mA_2_DAC_write(listof128_values_in_mA[index]*+0.034);
-                await this._writer.write(dacode);
-            }
-       } catch (error) {
-           console.log(error);
-       } finally {
-           this._writer.releaseLock();
-       }
-
-    }
-
-    fetch_wave_data(url) {
-        fetch(location+url).then(res=>{
-            return res.json();
-        }).then(res=>{
-            this.chufang = res;
-            this.ampchange(80);
-        });
-    }
-}
 //定时器
 function tryKeepScreenAlive(minutes) {
     if ("wakeLock" in navigator) {
@@ -684,8 +433,7 @@ function tryKeepScreenAlive(minutes) {
     }
 }
 
-var stimulator = new Stimulator();
-stimulator.fetch_wave_data('chufang/alpha.json');
+//fetch_wave_data('chufang/alpha.json');
 // 音乐池
 class MusicPool {
     constructor() {
@@ -764,8 +512,8 @@ var self_songs = self_wrap.querySelectorAll('.song-info');
 var warning = document.querySelector('.warning');
 
 player.addEventListener('ended', checkOrder);
-prev.addEventListener('click', decreseamp);
-next.addEventListener('click', increseamp);
+//prev.addEventListener('click', decreseamp);
+//next.addEventListener('click', increseamp);
 
 // 判断此时属于哪种播放顺序从而确定如何执行下一步
 function checkOrder() {
@@ -784,15 +532,6 @@ function checkOrder() {
     //stimulator.fetch_wave_data(cf);//todo
 }
 
-function increseamp() {
-    stimulator._offset += 0.1;
-    //console.log("+");
-}
-
-function decreseamp() {
-    stimulator._offset -= 0.1;
-    //console.log("-");
-}
 // 最后一步歌曲信息的改变
 function change(mid, name, pic, singer, url, type) {
     if ( !judge(type, mid, name, singer) ) { return };
@@ -812,6 +551,7 @@ function refresh(mid, name, pic, singer, url) {
     player.setAttribute('mid', mid);
     player.setAttribute('title', name);
     player.setAttribute('src', url);
+    //player.setAttribute('cf', cf);
 }
 
 /**
@@ -881,11 +621,6 @@ function showActiveMusic(mid) {
 
 // 点击播放顺序按钮切换
 (() => {
-    function formatTime(time) {
-        var min = Math.floor(time / 60);
-        var sec = Math.floor(time % 60);
-        return  min + ':' + (sec < 10 ? '0' + sec : sec);
-    }
     var i = 0;
     var classLists = ['loop', 'random','circle'];
     var total_time = document.querySelector('.music-progress .total');
@@ -894,9 +629,10 @@ function showActiveMusic(mid) {
         order.className = classLists[i];
         order.classList.contains('loop') ? player.setAttribute('loop', 'loop') : player.removeAttribute('loop');
         i++;//i * 20 i=1/2/3
-        total_time.textContent = formatTime(i*20*60);
-        //stimulator.tryKeepScreenAlive(i*20);    //todo
+        //total_time.textContent = formatTime(i*20*60);
     })
+    order.click();
+
 })()
 
 // 歌单中播放音乐或删除音乐
@@ -909,7 +645,7 @@ function playMusic(e) {
         var key = li.querySelector('.song-info').getAttribute('song_mid');
         var { mid, name, pic, singer, url ,cf} = pool.findMusic(key);
         change(mid, name, pic, singer, url);
-        stimulator.fetch_wave_data(cf);
+        stimulator.postMessage({action:'set', src:fetch_wave_data(cf)});
     }
 }
 
@@ -1166,7 +902,7 @@ function markPageMid(e) {
         selection.setAttribute('song_mid', mid);
     }
 }
-blur.classList.add('show');
+blur.classList.add('show'); //add by icm
 //saveMusicListToCache();
 // Service Worker Register
 if ( 'serviceWorker' in navigator ) {
@@ -1223,6 +959,22 @@ function getMusicListFromCache() {
         return Promise.resolve();
     }
 }
+function    groupArray(data, hz) {
+    const list = [];
+    let current = [];
+    data.forEach(t =>{
+        current.push(t);
+        if (current.length === hz) {
+            list.push(current);
+            current = [];
+        }
+    });
+
+    if (current.length ) {
+        list.push(current);
+    }
+    return list;
+}
 
 getMusicListFromCache()
 .then( response => {
@@ -1245,22 +997,3 @@ getMusicListFromCache()
     console.log(err);
 })
 
-if ('usb' in navigator) {
-    navigator.usb.addEventListener('connect', event => {
-        // Add event.device to the UI.
-        warning.textContent = '设备已接入';
-        warning.classList.add('on');
-        setTimeout(() => { warning.classList.remove('on') }, 2000);
-        console.log("disconnect");
-        //stimulator._connect();
-    });
-    
-    navigator.usb.addEventListener('disconnect', event => {
-        // Remove event.device from the UI.
-        //alert('disconnect usb stimulator');
-        warning.textContent = '设备已断开';
-        warning.classList.add('on');
-        setTimeout(() => { warning.classList.remove('on') }, 2000);
-        console.log("disconnect");
-    });    
-}

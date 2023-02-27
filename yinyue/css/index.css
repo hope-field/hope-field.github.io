@@ -816,9 +816,10 @@ ul, li {
 .container .mask-blur {
   visibility: hidden;
   opacity: 0;
-  position: fixed;
-  width: 100%;
+  left: 0;
+  width: 100%; 
   height: 100%;
+  position: fixed;  
   z-index: 10;
   background-color: #efefef;
   display: flex;

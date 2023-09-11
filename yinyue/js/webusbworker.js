@@ -59,7 +59,7 @@ class Stimulator {
             return this._writer.write(todac);
             this.stat = todac.length;
             //resolve();
-        }).then((len)=>{
+        }).then(()=>{
             this.ts += this._bufferSize/2;
             //await sleep(2);
             //console.log(len);

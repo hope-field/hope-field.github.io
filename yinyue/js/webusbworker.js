@@ -41,7 +41,7 @@ class Stimulator {
       //return this.fsm;
   }
 
-  async playing( ) {
+  playing( ) {
     var todac = new Uint8Array(this._bufferSize);
     for (let index = 0; index < 1; index++) {
         if (this.ticks+this._bufferSize <= this._wave.length) {
@@ -54,9 +54,9 @@ class Stimulator {
             this.ticks += this._bufferSize - this._wave.length;
         }
 
-        await this._writer.ready
+        this._writer.ready
         .then(async ()=> {
-            await this._writer.write(todac);
+            return this._writer.write(todac);
             this.stat = todac.length;
             //resolve();
         }).then((len)=>{
@@ -172,7 +172,7 @@ class Stimulator {
       }
   }
 
-  async pause() {
+  pause() {
     var zeros = new Array(32);
     var dac0 = new Uint8Array(this._bufferSize);
     zeros.fill(0);
@@ -180,13 +180,13 @@ class Stimulator {
                         .map(v=>Math.round(((16383*1.0866)/5)*(2.5-v)))
                         .flatMap(v=>[(v>>8)&0xFF, v&0xFF]), 0);
     
-    await this._writer.ready
+    this._writer.ready
             .then(async ()=> {
-                await this._writer.write(dac0);
+                return this._writer.write(dac0);
                 //this.stat = todac.length;
                 //resolve();
-            }).then((len)=>{
-                this.ts += this._bufferSize/2;
+            }).then(()=>{
+                //this.ts += this._bufferSize/2;
                 //await sleep(2);
                 //console.log(len);
             }).catch(r=>{this.stat = r});
@@ -324,7 +324,7 @@ onmessage = async function(event) {
                     clearInterval(_timer);
                     _timer = null;
                     stimulator.ts = 0;
-                    stimulator.fun = stimulator.pause;
+                    stimulator.func = stimulator.pause;
                 }
                 
               }, 1000);
